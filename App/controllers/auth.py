@@ -1,52 +1,81 @@
 from flask_jwt_extended import create_access_token, jwt_required, JWTManager, get_jwt_identity, verify_jwt_in_request
+from flask_jwt_extended import current_user
+from functools import wraps
+from flask import jsonify
+from App.controllers.user import create_employer, create_staff, create_student
+from flask_login import login_user, current_user
 
-from App.models import User
+from App.models import User, Staff, Employer, Student
 from App.database import db
 
 def login(username, password):
-  result = db.session.execute(db.select(User).filter_by(username=username))
-  user = result.scalar_one_or_none()
-  if user and user.check_password(password):
-    # Store ONLY the user id as a string in JWT 'sub'
-    return create_access_token(identity=str(user.id))
-  return None
+    staff = Staff.query.filter_by(username=username).first()
+    if staff and staff.check_password(password):
+        return staff
+    student = Student.query.filter_by(username=username).first()
+    if student and student.check_password(password):
+        return student
+    
+    employer = Employer.query.filter_by(username=username).first()
+    if employer and employer.check_password(password):
+        return employer 
+    
+    return None
+
+def login_student(username, password):
+    student = Student.query.filter_by(username=username).first()
+    if student and student.check_password(password):
+        login_user(student)
+        return student
+    return None
+
+def login_staff(username, password):
+    staff = Staff.query.filter_by(username=username).first()
+    if staff and staff.check_password(password):
+        login_user(staff)
+        return staff
+    return None
+
+def login_employer(username, password):
+    employer = Employer.query.filter_by(username=username).first()
+    if employer and employer.check_password(password):
+        login_user(employer)
+        return employer
+    return None
+
+def initialize():
+    db.drop_all()
+    db.create_all()
+    bob = create_staff('bob', 'bobpass')
+    db.session.add(bob)
+    db.session.commit()
+    student1 = create_student('student1', 'student1pass')
+    db.session.add(student1)
+    db.session.commit()
+    employer1 = create_employer('employer1', 'employer1pass', 'TechCorp')
+    db.session.add(employer1) 
 
 
-def setup_jwt(app):
-  jwt = JWTManager(app)
+def staff_required(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if not current_user.is_authenticated or not isinstance(current_user, Staff):
+            return "Unauthorized", 401
+        return func(*args, **kwargs)
+    return wrapper
 
-  # Always store a string user id in the JWT identity (sub),
-  # whether a User object or a raw id is passed.
-  @jwt.user_identity_loader
-  def user_identity_lookup(identity):
-    user_id = getattr(identity, "id", identity)
-    return str(user_id) if user_id is not None else None
+def employer_required(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if not current_user.is_authenticated or not isinstance(current_user, Employer):
+            return "Unauthorized", 401
+        return func(*args, **kwargs)
+    return wrapper
 
-  @jwt.user_lookup_loader
-  def user_lookup_callback(_jwt_header, jwt_data):
-    identity = jwt_data["sub"]
-    # Cast back to int primary key
-    try:
-      user_id = int(identity)
-    except (TypeError, ValueError):
-      return None
-    return db.session.get(User, user_id)
-
-  return jwt
-
-
-# Context processor to make 'is_authenticated' available to all templates
-def add_auth_context(app):
-  @app.context_processor
-  def inject_user():
-      try:
-          verify_jwt_in_request()
-          identity = get_jwt_identity()
-          user_id = int(identity) if identity is not None else None
-          current_user = db.session.get(User, user_id) if user_id is not None else None
-          is_authenticated = current_user is not None
-      except Exception as e:
-          print(e)
-          is_authenticated = False
-          current_user = None
-      return dict(is_authenticated=is_authenticated, current_user=current_user)
+def student_required(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if not current_user.is_authenticated or not isinstance(current_user, Student):
+            return "Unauthorized", 401
+        return func(*args, **kwargs)
+    return wrapper
