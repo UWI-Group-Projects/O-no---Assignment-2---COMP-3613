@@ -1,7 +1,10 @@
 from App.models import User
 from App.database import db
 from App.models.student import Student
-
+from App.models.employer import Employer
+from App.models.staff import Staff
+from flask_login import login_user, current_user
+from functools import wraps
 def create_user(username, password):
     
     new_user = User(username=username, password=password)
@@ -96,10 +99,7 @@ def delete_staff(staff_id):
         return True
     except:
         return False
-from App.models.employer import Employer
-from App.models.staff import Staff
-from flask_login import login_user, current_user
-from functools import wraps
+
 def staff_required(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -107,6 +107,14 @@ def staff_required(func):
             return "Unauthorized", 401
         return func(*args, **kwargs)
     return wrapper
+
+def get_all_users():
+    return User.query.all()
+def get_all_users_json():
+    user_list = User.query.all()
+    return [user.get_json() for user in user_list]
+
+
 def initialize():
     db.drop_all()
     db.create_all()

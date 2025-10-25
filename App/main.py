@@ -8,11 +8,9 @@ from werkzeug.datastructures import  FileStorage
 from App.database import init_db
 from App.config import load_config
 
+from App.jwt import setup_jwt
+from App.autty import add_auth_context
 
-from App.controllers import (
-    setup_jwt,
-    add_auth_context
-)
 
 from App.views import views, setup_admin
 
